@@ -1,0 +1,13 @@
+﻿using System.Text.Json.Serialization;
+using SPTarkov.Server.Core.Models.Utils;
+
+namespace SPT_Auth.Server.Models;
+
+public record CheckUsernameRequestData : IRequestData
+{
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("password")]
+    public string? Password { get; set; }
+}
