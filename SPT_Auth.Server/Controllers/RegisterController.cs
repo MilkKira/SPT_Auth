@@ -12,19 +12,19 @@ namespace SPT_Auth.Server.Controllers;
 public class RegisterController(
     LauncherController launcherController,
     LauncherAuthConfigService configService,
-    LauncherAuthStore authStore
+    ProfileAuthService authService
 )
 {
     /** 校验用户名和密码，成功时返回账号对应的存档 id。 */
-    public MongoId Check(RegisterRequestData info)
+    public async Task<MongoId> Check(RegisterRequestData info)
     {
-        var authProfileId = authStore.Validate(info.Username, info.Password);
+        var authProfileId = authService.Validate(info.Username, info.Password);
         if (!authProfileId.IsEmpty)
         {
             return authProfileId;
         }
 
-        return TryInitializeLegacyPassword(info);
+        return await TryInitializeLegacyPassword(info);
     }
 
     /** 创建带密码的新账号，并同步创建 SPT 存档。 */
@@ -52,8 +52,10 @@ public class RegisterController(
         {
             return MongoId.Empty();
         }
-        
-        return profileId;
+
+        return await authService.SetPasswordAsync(profileId, info.Password!)
+            ? profileId
+            : MongoId.Empty();
     }
     
 
@@ -64,12 +66,12 @@ public class RegisterController(
     }
 
     /** 旧账号没有补丁密码记录时，用当前输入密码初始化密码并返回存档 id。 */
-    private MongoId TryInitializeLegacyPassword(RegisterRequestData info)
+    private async Task<MongoId> TryInitializeLegacyPassword(RegisterRequestData info)
     {
         if (
             string.IsNullOrWhiteSpace(info.Username)
             || string.IsNullOrWhiteSpace(info.Password)
-            || authStore.Exists(info.Username)
+            || authService.Exists(info.Username)
         )
         {
             return MongoId.Empty();
@@ -87,8 +89,9 @@ public class RegisterController(
             return MongoId.Empty();
         }
 
-        authStore.Create(info.Username, info.Password, profileId, null);
-        return profileId;
+        return await authService.SetPasswordAsync(profileId, info.Password)
+            ? profileId
+            : MongoId.Empty();
     }
 
     /** 判断当前配置是否允许开放新账号注册。 */

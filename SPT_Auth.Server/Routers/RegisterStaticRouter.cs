@@ -30,10 +30,10 @@ public class RegisterStaticRouter(RegisterController registerController, HttpRes
     )
 {
     /** 处理启动器登录校验请求，密码正确时返回存档 id，否则返回 FAILED。 */
-    private static ValueTask<string> Check(RegisterController registerController, string url, RegisterRequestData info, SPTarkov.Server.Core.Models.Common.MongoId sessionID)
+    private static async ValueTask<string> Check(RegisterController registerController, string url, RegisterRequestData info, SPTarkov.Server.Core.Models.Common.MongoId sessionID)
     {
-        var output = registerController.Check(info);
-        return new ValueTask<string>(output.IsEmpty ? "FAILED" : output.ToString());
+        var output = await registerController.Check(info);
+        return output.IsEmpty ? "FAILED" : output.ToString();
     }
     
     /** 处理注册请求，创建成功时返回新账号存档 id。 */
