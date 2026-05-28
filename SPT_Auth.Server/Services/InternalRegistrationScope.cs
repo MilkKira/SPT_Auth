@@ -1,5 +1,10 @@
 namespace SPT_Auth.Server.Services;
 
+/**
+ * Patch 重入保护上下文 / 内部调用旁路开关
+ *
+ * 在代码内部调用 LauncherController.Login/Register 时，临时绕过你写的 Harmony Patch，避免递归和逻辑冲突。
+ */
 public static class InternalRegistrationScope
 {
     private static readonly AsyncLocal<int> Depth = new();

@@ -13,60 +13,64 @@ namespace SPT_Auth.Server.Patches;
 [HarmonyPatch]
 public static class LauncherControllerPatches
 {
-    [HarmonyPatch(typeof(LauncherCallbacks), nameof(LauncherCallbacks.Login))]
-    [HarmonyPrefix]
-    public static bool LauncherCallbackLoginPrefix(LoginRequestData info, ref ValueTask<string> __result)
-    {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
-
-        var profileId = GetCredentialService().Validate(info.Username, GetPassword(info));
-        __result = new ValueTask<string>(profileId.IsEmpty ? "FAILED" : profileId.ToString());
-        return false;
-    }
-
-    [HarmonyPatch(typeof(LauncherCallbacks), nameof(LauncherCallbacks.Register))]
-    [HarmonyPrefix]
-    public static bool LauncherCallbackRegisterPrefix(ref ValueTask<string> __result)
-    {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
-
-        __result = new ValueTask<string>("FAILED");
-        return false;
-    }
-
-    [HarmonyPatch(typeof(LauncherV2Callbacks), nameof(LauncherV2Callbacks.Login))]
-    [HarmonyPrefix]
-    public static bool LauncherV2CallbackLoginPrefix(LoginRequestData info, ref ValueTask<string> __result)
-    {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
-
-        var success = !GetCredentialService().Validate(info.Username, GetPassword(info)).IsEmpty;
-        __result = new ValueTask<string>(GetHttpResponseUtil().NoBody(success));
-        return false;
-    }
-
-    [HarmonyPatch(typeof(LauncherV2Callbacks), nameof(LauncherV2Callbacks.Register))]
-    [HarmonyPrefix]
-    public static bool LauncherV2CallbackRegisterPrefix(ref ValueTask<string> __result)
-    {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
-
-        __result = new ValueTask<string>(GetHttpResponseUtil().NoBody(false));
-        return false;
-    }
-
+    
+    // TODO : CallBacks Patch
+    // [HarmonyPatch(typeof(LauncherCallbacks), nameof(LauncherCallbacks.Login))]
+    // [HarmonyPrefix]
+    // public static bool LauncherCallbackLoginPrefix(LoginRequestData info, ref ValueTask<string> __result)
+    // {
+    //     if (InternalRegistrationScope.IsActive)
+    //     {
+    //         return true;
+    //     }
+    //
+    //     var profileId = GetCredentialService().Validate(info.Username, GetPassword(info));
+    //     __result = new ValueTask<string>(profileId.IsEmpty ? "FAILED" : profileId.ToString());
+    //     return false;
+    // }
+    //
+    // [HarmonyPatch(typeof(LauncherCallbacks), nameof(LauncherCallbacks.Register))]
+    // [HarmonyPrefix]
+    // public static bool LauncherCallbackRegisterPrefix(ref ValueTask<string> __result)
+    // {
+    //     if (InternalRegistrationScope.IsActive)
+    //     {
+    //         return true;
+    //     }
+    //
+    //     __result = new ValueTask<string>("FAILED");
+    //     return false;
+    // }
+    //
+    // [HarmonyPatch(typeof(LauncherV2Callbacks), nameof(LauncherV2Callbacks.Login))]
+    // [HarmonyPrefix]
+    // public static bool LauncherV2CallbackLoginPrefix(LoginRequestData info, ref ValueTask<string> __result)
+    // {
+    //     if (InternalRegistrationScope.IsActive)
+    //     {
+    //         return true;
+    //     }
+    //
+    //     var success = !GetCredentialService().Validate(info.Username, GetPassword(info)).IsEmpty;
+    //     __result = new ValueTask<string>(GetHttpResponseUtil().NoBody(success));
+    //     return false;
+    // }
+    //
+    // [HarmonyPatch(typeof(LauncherV2Callbacks), nameof(LauncherV2Callbacks.Register))]
+    // [HarmonyPrefix]
+    // public static bool LauncherV2CallbackRegisterPrefix(ref ValueTask<string> __result)
+    // {
+    //     if (InternalRegistrationScope.IsActive)
+    //     {
+    //         return true;
+    //     }
+    //
+    //     __result = new ValueTask<string>(GetHttpResponseUtil().NoBody(false));
+    //     return false;
+    // }
+    /**
+     * LauncherController Login
+     */
     [HarmonyPatch(typeof(LauncherController), nameof(LauncherController.Login))]
     [HarmonyPrefix]
     public static bool LauncherLoginPrefix(LoginRequestData info, ref MongoId __result)
@@ -79,7 +83,9 @@ public static class LauncherControllerPatches
         __result = GetCredentialService().Validate(info.Username, GetPassword(info));
         return false;
     }
-
+    /**
+    * LauncherController Register
+    */
     [HarmonyPatch(typeof(LauncherController), nameof(LauncherController.Register))]
     [HarmonyPrefix]
     public static bool LauncherRegisterPrefix(ref Task<MongoId> __result)
@@ -92,7 +98,9 @@ public static class LauncherControllerPatches
         __result = Task.FromResult(MongoId.Empty());
         return false;
     }
-
+    /**
+    * LauncherV2Controller Login
+    */
     [HarmonyPatch(typeof(LauncherV2Controller), nameof(LauncherV2Controller.Login))]
     [HarmonyPrefix]
     public static bool LauncherV2LoginPrefix(LoginRequestData info, ref bool __result)
@@ -105,7 +113,9 @@ public static class LauncherControllerPatches
         __result = !GetCredentialService().Validate(info.Username, GetPassword(info)).IsEmpty;
         return false;
     }
-
+    /**
+    * LauncherV2Controller Register
+    */
     [HarmonyPatch(typeof(LauncherV2Controller), nameof(LauncherV2Controller.Register))]
     [HarmonyPrefix]
     public static bool LauncherV2RegisterPrefix(ref Task<bool> __result)
