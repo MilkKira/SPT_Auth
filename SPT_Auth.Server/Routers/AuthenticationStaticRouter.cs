@@ -24,11 +24,7 @@ public class AuthenticationStaticRouter(
             new RouteAction<AuthRequestData>(
                 "/api/register",
                 async (_, request, _, _) => await RegisterAsync(authenticationController, request)
-            ),
-            new RouteAction<EmptyRequestData>(
-                "/api/register/editions",
-                async (_, _, _, _) => await GetEditionsAsync(authenticationController, httpResponseUtil)
-            ),
+            )
         ]
     )
 {
@@ -44,11 +40,5 @@ public class AuthenticationStaticRouter(
     {
         var profileId = await authenticationController.RegisterAsync(request);
         return profileId.IsEmpty ? string.Empty : profileId.ToString();
-    }
-
-    /** 处理版本列表请求，返回服务器当前允许创建的版本名称。 */
-    private static ValueTask<string> GetEditionsAsync(AuthenticationController authenticationController, HttpResponseUtil httpResponseUtil)
-    {
-        return new ValueTask<string>(httpResponseUtil.NoBody(authenticationController.GetEditions()));
     }
 }
