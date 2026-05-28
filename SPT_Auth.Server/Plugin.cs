@@ -1,12 +1,22 @@
-using SPTarkov.Server.Core.Models.External;
+using System.Reflection;
+using HarmonyLib;
+using SPTarkov.DI.Annotations;
+using SPTarkov.Server.Core.DI;
+using SPTarkov.Server.Core.Models.Utils;
 
 namespace SPT_Auth.Server;
 
-public class Plugin : IPreSptLoadModAsync
+[Injectable(TypePriority = OnLoadOrder.PostSptModLoader + 1)]
+public class SptAuthPlugin(ISptLogger<SptAuthPlugin> logger) : IOnLoad
 {
-    /** SPT 服务端模组预加载入口。认证服务、控制器和路由由 SPT DI 自动发现并注入。 */
-    public Task PreSptLoadAsync()
+    /// <summary>
+    /// 在服务端 mod 阶段启用认证补丁。
+    /// </summary>
+    public Task OnLoad()
     {
+        new Harmony(Constants.ServerGuid).PatchAll(Assembly.GetExecutingAssembly());
+        logger.Info("[SPT Auth] Launcher auth Harmony patches loaded.");
         return Task.CompletedTask;
     }
+    
 }
