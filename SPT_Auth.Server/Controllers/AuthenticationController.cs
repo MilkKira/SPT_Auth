@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SPT_Auth.Server.Models;
 using SPT_Auth.Server.Services;
 using SPTarkov.DI.Annotations;
@@ -62,13 +63,7 @@ public class AuthenticationController(
             ? profileId
             : MongoId.Empty();
     }
-
-    /** 返回当前服务器允许创建的账号版本列表。 */
-    public List<string> GetEditions()
-    {
-        return launcherController.Connect().Editions ?? [];
-    }
-
+    
     /** 旧账号没有密码记录时，用当前输入密码初始化密码并返回存档 id。 */
     private async Task<MongoId> InitializeLegacyProfilePasswordAsync(AuthRequestData request)
     {
@@ -106,8 +101,13 @@ public class AuthenticationController(
     private static bool IsRegistrationRequestValid(AuthRequestData request)
     {
         return !string.IsNullOrWhiteSpace(request.Username)
-            && request.Username.Length <= 15
-            && !string.IsNullOrWhiteSpace(request.Password)
-            && !string.IsNullOrWhiteSpace(request.Edition);
+               && request.Username.Length <= 15
+               && !string.IsNullOrWhiteSpace(request.Password)
+               && request.Password.Length is >= 6 and <= 16
+               && Regex.IsMatch(
+                   request.Password,
+                   @"^(?=.*[A-Za-z])(?=.*\d).+$"
+               )
+               && !string.IsNullOrWhiteSpace(request.Edition);
     }
 }
