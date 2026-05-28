@@ -1,19 +1,18 @@
+using System.Text.Json;
 using HarmonyLib;
 using Microsoft.Extensions.DependencyInjection;
 using SPT_Auth.Server.Services;
-using System.Text.Json;
-using SPTarkov.Server.Core.Callbacks;
 using SPTarkov.Server.Core.Controllers;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Launcher;
+using SPTarkov.Server.Core.Utils;
 
 namespace SPT_Auth.Server.Patches;
 
 [HarmonyPatch]
 public static class LauncherControllerPatches
 {
-    
     // TODO : CallBacks Patch
     // [HarmonyPatch(typeof(LauncherCallbacks), nameof(LauncherCallbacks.Login))]
     // [HarmonyPrefix]
@@ -75,14 +74,12 @@ public static class LauncherControllerPatches
     [HarmonyPrefix]
     public static bool LauncherLoginPrefix(LoginRequestData info, ref MongoId __result)
     {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
+        if (InternalRegistrationScope.IsActive) return true;
 
         __result = GetCredentialService().Validate(info.Username, GetPassword(info));
         return false;
     }
+
     /**
     * LauncherController Register
     */
@@ -90,14 +87,12 @@ public static class LauncherControllerPatches
     [HarmonyPrefix]
     public static bool LauncherRegisterPrefix(ref Task<MongoId> __result)
     {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
+        if (InternalRegistrationScope.IsActive) return true;
 
         __result = Task.FromResult(MongoId.Empty());
         return false;
     }
+
     /**
     * LauncherV2Controller Login
     */
@@ -105,14 +100,12 @@ public static class LauncherControllerPatches
     [HarmonyPrefix]
     public static bool LauncherV2LoginPrefix(LoginRequestData info, ref bool __result)
     {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
+        if (InternalRegistrationScope.IsActive) return true;
 
         __result = !GetCredentialService().Validate(info.Username, GetPassword(info)).IsEmpty;
         return false;
     }
+
     /**
     * LauncherV2Controller Register
     */
@@ -120,10 +113,7 @@ public static class LauncherControllerPatches
     [HarmonyPrefix]
     public static bool LauncherV2RegisterPrefix(ref Task<bool> __result)
     {
-        if (InternalRegistrationScope.IsActive)
-        {
-            return true;
-        }
+        if (InternalRegistrationScope.IsActive) return true;
 
         __result = Task.FromResult(false);
         return false;
@@ -136,25 +126,22 @@ public static class LauncherControllerPatches
 #pragma warning restore CS0618
     }
 
-    private static SPTarkov.Server.Core.Utils.HttpResponseUtil GetHttpResponseUtil()
+    private static HttpResponseUtil GetHttpResponseUtil()
     {
 #pragma warning disable CS0618
-        return ServiceLocator.ServiceProvider.GetRequiredService<SPTarkov.Server.Core.Utils.HttpResponseUtil>();
+        return ServiceLocator.ServiceProvider.GetRequiredService<HttpResponseUtil>();
 #pragma warning restore CS0618
     }
 
     private static string? GetPassword(LoginRequestData info)
     {
-        if (info.ExtensionData is null || !info.ExtensionData.TryGetValue("password", out var value))
-        {
-            return null;
-        }
+        if (info.ExtensionData is null || !info.ExtensionData.TryGetValue("password", out var value)) return null;
 
         return value switch
         {
             string password => password,
             JsonElement { ValueKind: JsonValueKind.String } element => element.GetString(),
-            _ => value?.ToString(),
+            _ => value?.ToString()
         };
     }
 }

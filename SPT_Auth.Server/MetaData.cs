@@ -1,6 +1,4 @@
-﻿
-
-using SPTarkov.Server.Core.Models.Spt.Mod;
+﻿using SPTarkov.Server.Core.Models.Spt.Mod;
 using Range = SemanticVersioning.Range;
 using Version = SemanticVersioning.Version;
 
@@ -26,5 +24,4 @@ internal static class Constants
     public const string ServerGuid = "com.milkkira.easyAuth.server";
 
     public const string ServerPluginName = "牛奶的简单认证系统";
-    
 }

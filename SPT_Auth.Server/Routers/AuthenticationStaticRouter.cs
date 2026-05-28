@@ -2,8 +2,6 @@ using SPT_Auth.Server.Controllers;
 using SPT_Auth.Server.Models;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Models.Common;
-using SPTarkov.Server.Core.Models.Eft.Common;
 using SPTarkov.Server.Core.Utils;
 
 namespace SPT_Auth.Server.Routers;
@@ -27,15 +25,21 @@ public class AuthenticationStaticRouter(
         ]
     )
 {
-    /** 处理启动器登录校验请求，密码正确时返回存档 id，否则返回 FAILED。 */
-    private static async ValueTask<string> LoginAsync(AuthenticationController authenticationController, AuthRequestData request)
+    /**
+     * 处理启动器登录校验请求，密码正确时返回存档 id，否则返回 FAILED。
+     */
+    private static async ValueTask<string> LoginAsync(AuthenticationController authenticationController,
+        AuthRequestData request)
     {
         var profileId = await authenticationController.LoginAsync(request);
         return profileId.IsEmpty ? "FAILED" : profileId.ToString();
     }
 
-    /** 处理注册请求，创建成功时返回新账号存档 id。 */
-    private static async ValueTask<string> RegisterAsync(AuthenticationController authenticationController, AuthRequestData request)
+    /**
+     * 处理注册请求，创建成功时返回新账号存档 id。
+     */
+    private static async ValueTask<string> RegisterAsync(AuthenticationController authenticationController,
+        AuthRequestData request)
     {
         var profileId = await authenticationController.RegisterAsync(request);
         return profileId.IsEmpty ? string.Empty : profileId.ToString();
