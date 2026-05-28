@@ -33,13 +33,17 @@ public class AuthenticationController(
             return MongoId.Empty();
         }
 
-        var profileId = await launcherController.Register(
-            new SPTarkov.Server.Core.Models.Eft.Launcher.RegisterData
-            {
-                Username = request.Username,
-                Edition = request.Edition,
-            }
-        );
+        MongoId profileId;
+        using (InternalRegistrationScope.Begin())
+        {
+            profileId = await launcherController.Register(
+                new SPTarkov.Server.Core.Models.Eft.Launcher.RegisterData
+                {
+                    Username = request.Username,
+                    Edition = request.Edition,
+                }
+            );
+        }
 
         if (profileId.IsEmpty)
         {
@@ -69,12 +73,16 @@ public class AuthenticationController(
             return MongoId.Empty();
         }
 
-        var profileId = launcherController.Login(
-            new SPTarkov.Server.Core.Models.Eft.Launcher.LoginRequestData
-            {
-                Username = request.Username,
-            }
-        );
+        MongoId profileId;
+        using (InternalRegistrationScope.Begin())
+        {
+            profileId = launcherController.Login(
+                new SPTarkov.Server.Core.Models.Eft.Launcher.LoginRequestData
+                {
+                    Username = request.Username,
+                }
+            );
+        }
 
         if (profileId.IsEmpty)
         {
