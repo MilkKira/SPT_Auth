@@ -21,8 +21,16 @@ public class AuthenticationController(
         {
             return profileId;
         }
-
-        return await InitializeLegacyProfilePasswordAsync(request);
+        
+        if (!configService.Config.CompatibleWithLegacyAccount)
+        {
+            return MongoId.Empty();
+        }
+        else
+        {
+            return await InitializeLegacyProfilePasswordAsync(request);
+        }
+        
     }
 
     /** 创建带密码的新账号，并同步创建 SPT 存档。 */
