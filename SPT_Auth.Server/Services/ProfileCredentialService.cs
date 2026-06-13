@@ -34,6 +34,12 @@ public class ProfileCredentialService(SaveServer saveServer)
         try
         {
             profile = saveServer.GetProfile(profileId);
+            // 非空检查
+            if (profile?.ProfileInfo?.Username is null)
+                return false;
+            // 禁止密码与账户相同
+            if (password == profile.ProfileInfo.Username)
+                return false;
         }
         catch
         {
