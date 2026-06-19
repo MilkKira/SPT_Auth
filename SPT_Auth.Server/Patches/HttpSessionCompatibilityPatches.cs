@@ -9,13 +9,14 @@ namespace SPT_Auth.Server.Patches;
 
 /// <summary>
 /// Keeps the SPT session cookie usable when a reverse proxy applies stricter
-/// cookie path handling or drops the cookie on /client/game/config.
+/// cookie path handling or drops the cookie on selected SPT/Fika routes.
 /// </summary>
 [HarmonyPatch(typeof(HttpServer), nameof(HttpServer.HandleRequest))]
 public static class HttpSessionCompatibilityPatches
 {
     private const string SessionCookieName = "PHPSESSID";
     private const string GameConfigPath = "/client/game/config";
+    private const string FikaPathPrefix = "/fika";
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromMinutes(10);
     private static readonly ConcurrentDictionary<string, CachedSession> SessionsByClient = new();
 
@@ -33,7 +34,7 @@ public static class HttpSessionCompatibilityPatches
         }
 
         if (
-            !context.Request.Path.Equals(GameConfigPath, StringComparison.OrdinalIgnoreCase)
+            !IsSessionRecoveryPath(context.Request.Path)
             || !SessionsByClient.TryGetValue(clientKey, out var cachedSession)
         )
         {
@@ -85,11 +86,7 @@ public static class HttpSessionCompatibilityPatches
                 continue;
             }
 
-            normalizedHeaders.Add(
-                header.Contains("Path=", StringComparison.OrdinalIgnoreCase)
-                    ? header
-                    : $"{header}; Path=/"
-            );
+            normalizedHeaders.Add(NormalizeCookiePath(header));
         }
 
         if (normalizedHeaders.Count == 0)
@@ -102,6 +99,54 @@ public static class HttpSessionCompatibilityPatches
         }
 
         return Task.CompletedTask;
+    }
+
+    private static bool IsSessionRecoveryPath(PathString path)
+    {
+        if (path.Equals(GameConfigPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var value = path.Value;
+        return value is not null
+            && (
+                value.Equals(FikaPathPrefix, StringComparison.OrdinalIgnoreCase)
+                || value.StartsWith($"{FikaPathPrefix}/", StringComparison.OrdinalIgnoreCase)
+            );
+    }
+
+    private static string NormalizeCookiePath(string header)
+    {
+        var attributes = header.Split(';', StringSplitOptions.TrimEntries);
+        var normalized = new List<string>(attributes.Length + 1) { attributes[0] };
+        var pathWritten = false;
+
+        foreach (var attribute in attributes.Skip(1))
+        {
+            if (attribute.StartsWith("Path=", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!pathWritten)
+                {
+                    normalized.Add("Path=/");
+                    pathWritten = true;
+                }
+
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(attribute))
+            {
+                normalized.Add(attribute);
+            }
+        }
+
+        if (!pathWritten)
+        {
+            normalized.Add("Path=/");
+        }
+
+        return string.Join("; ", normalized);
     }
 
     private static bool TryGetSessionId(StringValues cookieHeaders, out MongoId sessionId)
