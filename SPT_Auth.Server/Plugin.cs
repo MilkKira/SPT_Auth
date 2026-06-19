@@ -15,7 +15,7 @@ public class SptAuthPlugin(ISptLogger<SptAuthPlugin> logger) : IOnLoad
     public Task OnLoad()
     {
         new Harmony(Constants.ServerGuid).PatchAll(Assembly.GetExecutingAssembly());
-        logger.Info("[SPT Auth] Launcher auth Harmony patches loaded.");
+        logger.Info("[SPT Auth] Authentication and HTTP session compatibility Harmony patches loaded.");
         return Task.CompletedTask;
     }
 }
