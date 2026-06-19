@@ -55,17 +55,34 @@ public class ProfileCredentialService(SaveServer saveServer)
      */
     public MongoId Validate(string? username, string? password)
     {
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password)) return MongoId.Empty();
+        return ValidateDetailed(username, password).ProfileId;
+    }
+
+    /**
+     * 校验用户名和密码是否匹配，并返回用于认证日志的失败原因。
+     */
+    public CredentialValidationResult ValidateDetailed(string? username, string? password)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return new CredentialValidationResult(MongoId.Empty(), CredentialValidationStatus.MissingUsername);
+
+        if (string.IsNullOrWhiteSpace(password))
+            return new CredentialValidationResult(MongoId.Empty(), CredentialValidationStatus.MissingPassword);
 
         if (!TryGetProfileByUsername(username, out var profile) || !TryGetCredential(profile, out var credential))
-            return MongoId.Empty();
+            return new CredentialValidationResult(MongoId.Empty(), CredentialValidationStatus.MissingCredential);
 
         var expectedHash = Encoding.UTF8.GetBytes(credential.PasswordHash);
         var actualHash = Encoding.UTF8.GetBytes(HashPassword(password));
 
-        return CryptographicOperations.FixedTimeEquals(expectedHash, actualHash)
-            ? profile.ProfileInfo?.ProfileId ?? MongoId.Empty()
-            : MongoId.Empty();
+        if (!CryptographicOperations.FixedTimeEquals(expectedHash, actualHash))
+            return new CredentialValidationResult(MongoId.Empty(), CredentialValidationStatus.InvalidPassword);
+
+        var profileId = profile.ProfileInfo?.ProfileId ?? MongoId.Empty();
+        return new CredentialValidationResult(
+            profileId,
+            profileId.IsEmpty ? CredentialValidationStatus.EmptyProfileId : CredentialValidationStatus.Success
+        );
     }
 
     private bool TryGetProfileByUsername(string username, out SptProfile profile)
@@ -106,4 +123,16 @@ public class ProfileCredentialService(SaveServer saveServer)
     {
         public string PasswordHash { get; init; } = "";
     }
+}
+
+public sealed record CredentialValidationResult(MongoId ProfileId, CredentialValidationStatus Status);
+
+public enum CredentialValidationStatus
+{
+    Success,
+    MissingUsername,
+    MissingPassword,
+    MissingCredential,
+    InvalidPassword,
+    EmptyProfileId
 }

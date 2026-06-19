@@ -9,11 +9,14 @@ namespace SPT_Auth.Server;
 [Injectable(TypePriority = OnLoadOrder.PostSptModLoader + 1)]
 public class SptAuthPlugin(ISptLogger<SptAuthPlugin> logger) : IOnLoad
 {
+    internal static ISptLogger<SptAuthPlugin>? Logger { get; private set; }
+
     /// <summary>
     ///     在服务端 mod 阶段启用认证补丁。
     /// </summary>
     public Task OnLoad()
     {
+        Logger = logger;
         new Harmony(Constants.ServerGuid).PatchAll(Assembly.GetExecutingAssembly());
         logger.Info("[SPT Auth] Launcher auth Harmony patches loaded.");
         return Task.CompletedTask;

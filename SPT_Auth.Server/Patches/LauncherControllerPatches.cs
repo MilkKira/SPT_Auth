@@ -6,7 +6,6 @@ using SPTarkov.Server.Core.Controllers;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Launcher;
-using SPTarkov.Server.Core.Utils;
 
 namespace SPT_Auth.Server.Patches;
 
@@ -76,7 +75,10 @@ public static class LauncherControllerPatches
     {
         if (InternalRegistrationScope.IsActive) return true;
 
-        __result = GetCredentialService().Validate(info.Username, GetPassword(info));
+        var password = GetPassword(info);
+        var validation = GetCredentialService().ValidateDetailed(info.Username, password);
+        __result = validation.ProfileId;
+        LogLauncherAuth("LauncherController.Login", info.Username, password, validation.Status, !__result.IsEmpty, __result.ToString());
         return false;
     }
 
@@ -102,7 +104,10 @@ public static class LauncherControllerPatches
     {
         if (InternalRegistrationScope.IsActive) return true;
 
-        __result = !GetCredentialService().Validate(info.Username, GetPassword(info)).IsEmpty;
+        var password = GetPassword(info);
+        var validation = GetCredentialService().ValidateDetailed(info.Username, password);
+        __result = !validation.ProfileId.IsEmpty;
+        LogLauncherAuth("LauncherV2Controller.Login", info.Username, password, validation.Status, __result, validation.ProfileId.ToString());
         return false;
     }
 
@@ -126,11 +131,24 @@ public static class LauncherControllerPatches
 #pragma warning restore CS0618
     }
 
-    private static HttpResponseUtil GetHttpResponseUtil()
+    private static void LogLauncherAuth(
+        string source,
+        string? username,
+        string? password,
+        CredentialValidationStatus status,
+        bool success,
+        string profileId
+    )
     {
-#pragma warning disable CS0618
-        return ServiceLocator.ServiceProvider.GetRequiredService<HttpResponseUtil>();
-#pragma warning restore CS0618
+        var message = $"[SPT Auth] {source} result username='{SanitizeUsername(username)}' success={success} reason={status} passwordProvided={!string.IsNullOrWhiteSpace(password)} profileId='{profileId}'";
+        if (success)
+            SptAuthPlugin.Logger?.Info(message);
+        else
+            SptAuthPlugin.Logger?.Warning(message);
+    }
+    private static string SanitizeUsername(string? username)
+    {
+        return string.IsNullOrWhiteSpace(username) ? "<empty>" : username.Trim();
     }
 
     private static string? GetPassword(LoginRequestData info)

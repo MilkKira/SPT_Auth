@@ -5,6 +5,7 @@ using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.Controllers;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Launcher;
+using SPTarkov.Server.Core.Models.Utils;
 
 namespace SPT_Auth.Server.Controllers;
 
@@ -12,7 +13,8 @@ namespace SPT_Auth.Server.Controllers;
 public class AuthenticationController(
     LauncherController launcherController,
     AuthConfigService configService,
-    ProfileCredentialService credentialService
+    ProfileCredentialService credentialService,
+    ISptLogger<AuthenticationController> logger
 )
 {
     /**
@@ -20,12 +22,24 @@ public class AuthenticationController(
      */
     public async Task<MongoId> LoginAsync(AuthRequestData request)
     {
-        var profileId = credentialService.Validate(request.Username, request.Password);
-        if (!profileId.IsEmpty) return profileId;
+        var validation = credentialService.ValidateDetailed(request.Username, request.Password);
+        if (!validation.ProfileId.IsEmpty)
+        {
+            logger.Info($"[SPT Auth] /launcher/profile/check success username='{SanitizeUsername(request.Username)}' profileId='{validation.ProfileId}' passwordProvided={HasPassword(request)} source=storedCredential");
+            return validation.ProfileId;
+        }
 
-        if (!configService.Config.CompatibleWithLegacyAccount) return MongoId.Empty();
+        logger.Warning($"[SPT Auth] /launcher/profile/check stored credential failed username='{SanitizeUsername(request.Username)}' reason={validation.Status} passwordProvided={HasPassword(request)} legacyCompatible={configService.Config.CompatibleWithLegacyAccount}");
 
-        return await InitializeLegacyProfilePasswordAsync(request);
+        if (!configService.Config.CompatibleWithLegacyAccount)
+        {
+            logger.Warning($"[SPT Auth] /launcher/profile/check failed username='{SanitizeUsername(request.Username)}' reason=LegacyCompatibilityDisabled");
+            return MongoId.Empty();
+        }
+
+        var profileId = await InitializeLegacyProfilePasswordAsync(request);
+        logger.Info($"[SPT Auth] /launcher/profile/check legacy initialization result username='{SanitizeUsername(request.Username)}' success={!profileId.IsEmpty} profileId='{profileId}'");
+        return profileId;
     }
 
     /**
@@ -59,12 +73,23 @@ public class AuthenticationController(
      */
     private async Task<MongoId> InitializeLegacyProfilePasswordAsync(AuthRequestData request)
     {
-        if (
-            string.IsNullOrWhiteSpace(request.Username)
-            || string.IsNullOrWhiteSpace(request.Password)
-            || credentialService.Exists(request.Username)
-        )
+        if (string.IsNullOrWhiteSpace(request.Username))
+        {
+            logger.Warning("[SPT Auth] Legacy password initialization skipped reason=MissingUsername");
             return MongoId.Empty();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            logger.Warning($"[SPT Auth] Legacy password initialization skipped username='{SanitizeUsername(request.Username)}' reason=MissingPassword");
+            return MongoId.Empty();
+        }
+
+        if (credentialService.Exists(request.Username))
+        {
+            logger.Warning($"[SPT Auth] Legacy password initialization skipped username='{SanitizeUsername(request.Username)}' reason=CredentialAlreadyExists");
+            return MongoId.Empty();
+        }
 
         MongoId profileId;
         using (InternalRegistrationScope.Begin())
@@ -77,11 +102,17 @@ public class AuthenticationController(
             );
         }
 
-        if (profileId.IsEmpty) return MongoId.Empty();
+        if (profileId.IsEmpty)
+        {
+            logger.Warning($"[SPT Auth] Legacy password initialization failed username='{SanitizeUsername(request.Username)}' reason=OriginalLauncherLoginReturnedEmpty");
+            return MongoId.Empty();
+        }
 
-        return await credentialService.SetPasswordAsync(profileId, request.Password)
-            ? profileId
-            : MongoId.Empty();
+        var saved = await credentialService.SetPasswordAsync(profileId, request.Password);
+        if (!saved)
+            logger.Warning($"[SPT Auth] Legacy password initialization failed username='{SanitizeUsername(request.Username)}' profileId='{profileId}' reason=SavePasswordFailed");
+
+        return saved ? profileId : MongoId.Empty();
     }
 
     /**
@@ -98,5 +129,15 @@ public class AuthenticationController(
                    @"^(?=.*[A-Za-z])(?=.*\d).+$"
                )
                && !string.IsNullOrWhiteSpace(request.Edition);
+    }
+
+    private static bool HasPassword(AuthRequestData request)
+    {
+        return !string.IsNullOrWhiteSpace(request.Password);
+    }
+
+    private static string SanitizeUsername(string? username)
+    {
+        return string.IsNullOrWhiteSpace(username) ? "<empty>" : username.Trim();
     }
 }
