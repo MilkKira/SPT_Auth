@@ -18,7 +18,7 @@ public static class HttpSessionCompatibilityPatches
     private const string GameConfigPath = "/client/game/config";
     private const string FikaPathPrefix = "/fika";
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromMinutes(10);
-    private static readonly ConcurrentDictionary<string, CachedSession> SessionsByClient = new();
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<MongoId, DateTimeOffset>> SessionsByClient = new();
 
     [HarmonyPrefix]
     public static void Prefix(HttpContext context)
@@ -28,33 +28,42 @@ public static class HttpSessionCompatibilityPatches
         var clientKey = GetClientKey(context);
         if (TryGetSessionId(context.Request.Headers.Cookie, out var sessionId))
         {
-            SessionsByClient[clientKey] = new CachedSession(sessionId, DateTimeOffset.UtcNow);
+            var observedSessions = SessionsByClient.GetOrAdd(clientKey, static _ => new());
+            observedSessions[sessionId] = DateTimeOffset.UtcNow;
             RemoveExpiredSessions();
             return;
         }
 
         if (
             !IsSessionRecoveryPath(context.Request.Path)
-            || !SessionsByClient.TryGetValue(clientKey, out var cachedSession)
+            || !SessionsByClient.TryGetValue(clientKey, out var clientSessions)
         )
         {
             return;
         }
 
-        if (DateTimeOffset.UtcNow - cachedSession.LastSeen > SessionLifetime)
+        RemoveExpiredSessions(clientKey, clientSessions);
+
+        // Reverse proxies can make multiple players share the same apparent IP
+        // and Fika clients commonly use the same User-Agent. Recovering the most
+        // recently seen session in that case would silently impersonate another
+        // player. Only recover when the client key identifies one active session.
+        var candidates = clientSessions.ToArray();
+        if (candidates.Length != 1)
         {
-            SessionsByClient.TryRemove(clientKey, out _);
             return;
         }
+
+        var (cachedSessionId, _) = candidates[0];
 
         // HttpServer has not read Request.Cookies yet, so updating the raw
         // header here makes the recovered value visible to the original code.
         var existingCookies = context.Request.Headers.Cookie.ToString();
         context.Request.Headers.Cookie = string.IsNullOrWhiteSpace(existingCookies)
-            ? $"{SessionCookieName}={cachedSession.SessionId}"
-            : $"{existingCookies}; {SessionCookieName}={cachedSession.SessionId}";
+            ? $"{SessionCookieName}={cachedSessionId}"
+            : $"{existingCookies}; {SessionCookieName}={cachedSessionId}";
 
-        SessionsByClient[clientKey] = cachedSession with { LastSeen = DateTimeOffset.UtcNow };
+        clientSessions[cachedSessionId] = DateTimeOffset.UtcNow;
     }
 
     private static Task NormalizeSessionCookie(object state)
@@ -205,14 +214,39 @@ public static class HttpSessionCompatibilityPatches
     private static void RemoveExpiredSessions()
     {
         var expiry = DateTimeOffset.UtcNow - SessionLifetime;
-        foreach (var (clientKey, cachedSession) in SessionsByClient)
+        foreach (var (clientKey, clientSessions) in SessionsByClient)
         {
-            if (cachedSession.LastSeen < expiry)
-            {
-                SessionsByClient.TryRemove(clientKey, out _);
-            }
+            RemoveExpiredSessions(clientKey, clientSessions, expiry);
         }
     }
 
-    private sealed record CachedSession(MongoId SessionId, DateTimeOffset LastSeen);
+    private static void RemoveExpiredSessions(
+        string clientKey,
+        ConcurrentDictionary<MongoId, DateTimeOffset> clientSessions
+    )
+    {
+        RemoveExpiredSessions(clientKey, clientSessions, DateTimeOffset.UtcNow - SessionLifetime);
+    }
+
+    private static void RemoveExpiredSessions(
+        string clientKey,
+        ConcurrentDictionary<MongoId, DateTimeOffset> clientSessions,
+        DateTimeOffset expiry
+    )
+    {
+        foreach (var (sessionId, lastSeen) in clientSessions)
+        {
+            if (lastSeen < expiry)
+            {
+                clientSessions.TryRemove(sessionId, out _);
+            }
+        }
+
+        if (clientSessions.IsEmpty)
+        {
+            SessionsByClient.TryRemove(
+                new KeyValuePair<string, ConcurrentDictionary<MongoId, DateTimeOffset>>(clientKey, clientSessions)
+            );
+        }
+    }
 }
