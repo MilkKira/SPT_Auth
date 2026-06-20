@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using HarmonyLib;
 using Microsoft.AspNetCore.Http;
+using SPTarkov.Server.Core.Models.Common;
 
 namespace SPT_Auth.Server.Patches;
 
@@ -43,6 +44,11 @@ public static class FikaNotificationWebSocketPatches
         {
             return;
         }
+
+        HttpSessionCompatibilityPatches.ObserveAuthenticatedSession(
+            context,
+            new MongoId(sessionId)
+        );
 
         var field = AccessTools.Field(__instance.GetType(), ClientWebSocketsFieldName);
         if (
@@ -95,7 +101,7 @@ public static class FikaNotificationWebSocketPatches
                     : credentials
             ).Trim();
 
-            return sessionId.Length > 0;
+            return MongoId.IsValidMongoId(sessionId);
         }
         catch (FormatException)
         {
