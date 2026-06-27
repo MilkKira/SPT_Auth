@@ -110,10 +110,15 @@ public static class FikaHeadlessWebSocketPatches
         [HarmonyPrefix]
         public static bool Prefix(
             object __instance,
-            WebSocket ws,
+            object[] __args,
             ref Task __result
         )
         {
+            if (!TryGetCloseArgs(__args, out var ws, out var sessionId))
+            {
+                return true;
+            }
+
             var socketMappings = GetSocketMappings(
                 __instance,
                 "_headlessWebSockets"
@@ -121,6 +126,15 @@ public static class FikaHeadlessWebSocketPatches
             if (socketMappings is null)
             {
                 return true;
+            }
+
+            if (
+                socketMappings.TryGetValue(sessionId, out var currentSocket)
+                && !ReferenceEquals(currentSocket, ws)
+            )
+            {
+                __result = Task.CompletedTask;
+                return false;
             }
 
             var closingSession = socketMappings.FirstOrDefault(
@@ -178,6 +192,51 @@ public static class FikaHeadlessWebSocketPatches
                 sessionId,
                 ws
             );
+        }
+    }
+
+    [HarmonyPatch]
+    private static class HeadlessRequesterClosePatch
+    {
+        [HarmonyPrepare]
+        public static bool Prepare()
+        {
+            return AccessTools.TypeByName(HeadlessRequesterTypeName) is not null;
+        }
+
+        [HarmonyTargetMethod]
+        public static MethodBase? TargetMethod()
+        {
+            return GetWebSocketMethod(HeadlessRequesterTypeName, "OnClose");
+        }
+
+        [HarmonyPrefix]
+        public static bool Prefix(
+            object __instance,
+            object[] __args,
+            ref Task __result
+        )
+        {
+            if (!TryGetCloseArgs(__args, out var ws, out var sessionId))
+            {
+                return true;
+            }
+
+            var socketMappings = GetSocketMappings(
+                __instance,
+                "requesterWebSockets"
+            );
+            if (
+                socketMappings is not null
+                && socketMappings.TryGetValue(sessionId, out var currentSocket)
+                && !ReferenceEquals(currentSocket, ws)
+            )
+            {
+                __result = Task.CompletedTask;
+                return false;
+            }
+
+            return true;
         }
     }
 
@@ -466,5 +525,27 @@ public static class FikaHeadlessWebSocketPatches
         {
             return false;
         }
+    }
+
+    private static bool TryGetCloseArgs(
+        object[] args,
+        out WebSocket ws,
+        out string sessionId
+    )
+    {
+        if (
+            args.Length >= 3
+            && args[0] is WebSocket socket
+            && args[2] is string id
+        )
+        {
+            ws = socket;
+            sessionId = id;
+            return true;
+        }
+
+        ws = null!;
+        sessionId = string.Empty;
+        return false;
     }
 }

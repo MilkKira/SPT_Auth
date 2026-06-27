@@ -70,6 +70,56 @@ public static class FikaNotificationWebSocketPatches
         );
     }
 
+    [HarmonyPatch]
+    private static class ClosePatch
+    {
+        [HarmonyPrepare]
+        public static bool Prepare()
+        {
+            return AccessTools.TypeByName(NotificationWebSocketTypeName) is not null;
+        }
+
+        [HarmonyTargetMethod]
+        public static MethodBase? TargetMethod()
+        {
+            var notificationWebSocketType = AccessTools.TypeByName(NotificationWebSocketTypeName);
+            return notificationWebSocketType is null
+                ? null
+                : AccessTools.Method(
+                    notificationWebSocketType,
+                    "OnClose",
+                    [typeof(WebSocket), typeof(HttpContext), typeof(string)]
+                );
+        }
+
+        [HarmonyPrefix]
+        public static bool Prefix(object __instance, object[] __args, ref Task __result)
+        {
+            if (
+                __args.Length < 3
+                || __args[0] is not WebSocket closingSocket
+                || __args[2] is not string sessionId
+            )
+            {
+                return true;
+            }
+
+            var field = AccessTools.Field(__instance.GetType(), ClientWebSocketsFieldName);
+            if (
+                field?.GetValue(__instance)
+                    is ConcurrentDictionary<string, WebSocket> clientWebSockets
+                && clientWebSockets.TryGetValue(sessionId, out var currentSocket)
+                && !ReferenceEquals(currentSocket, closingSocket)
+            )
+            {
+                __result = Task.CompletedTask;
+                return false;
+            }
+
+            return true;
+        }
+    }
+
     private static bool TryGetSessionId(string authorizationHeader, out string sessionId)
     {
         sessionId = string.Empty;

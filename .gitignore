@@ -8,3 +8,5 @@ riderModule.iml
 /Fika-Server-main
 /Fika-Server-CSharp-main
 /Fika-Headless-main
+/Fika-Plugin-main
+*.zip
